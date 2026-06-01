@@ -1,0 +1,136 @@
+services:
+  postgres-users:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: users
+      POSTGRES_PASSWORD: users_secret
+      POSTGRES_DB: users_db
+    volumes:
+      - postgres_users_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U users -d users_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-events:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: events
+      POSTGRES_PASSWORD: events_secret
+      POSTGRES_DB: events_db
+    volumes:
+      - postgres_events_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U events -d events_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-invitations:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: invitations
+      POSTGRES_PASSWORD: invitations_secret
+      POSTGRES_DB: invitations_db
+    volumes:
+      - postgres_invitations_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invitations -d invitations_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  user-service:
+    build: ./services/user-service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://users:users_secret@postgres-users:5432/users_db
+      SERVICE_NAME: user-service
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-in-production}
+    depends_on:
+      postgres-users:
+        condition: service_healthy
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  event-service:
+    build: ./services/event-service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://events:events_secret@postgres-events:5432/events_db
+      USER_SERVICE_URL: http://user-service:8001
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-in-production}
+      SERVICE_NAME: event-service
+    depends_on:
+      postgres-events:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    expose:
+      - "8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  invitation-service:
+    build: ./services/invitation-service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://invitations:invitations_secret@postgres-invitations:5432/invitations_db
+      EVENT_SERVICE_URL: http://event-service:8002
+      USER_SERVICE_URL: http://user-service:8001
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-in-production}
+      SERVICE_NAME: invitation-service
+    depends_on:
+      postgres-invitations:
+        condition: service_healthy
+      event-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    expose:
+      - "8003"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    ports:
+      - "8080:8000"
+    environment:
+      USER_SERVICE_URL: http://user-service:8001
+      EVENT_SERVICE_URL: http://event-service:8002
+      INVITATION_SERVICE_URL: http://invitation-service:8003
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-in-production}
+      GATEWAY_TITLE: Event Scheduling API
+    depends_on:
+      user-service:
+        condition: service_healthy
+      event-service:
+        condition: service_healthy
+      invitation-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  postgres_users_data:
+  postgres_events_data:
+  postgres_invitations_data:

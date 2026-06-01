@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Event Scheduler — Test UI</title>
+  <link rel="stylesheet" href="/ui/css/style.css" />
+</head>
+<body>
+  <header class="header">
+    <div>
+      <h1>Event Scheduler</h1>
+      <p class="subtitle">Test UI for API Gateway</p>
+    </div>
+    <div class="header-actions">
+      <label>
+        API base
+        <input type="text" id="apiBase" value="" placeholder="http://localhost:8080" />
+      </label>
+      <button type="button" id="btnHealth" class="btn secondary">Check health</button>
+      <a href="/docs" target="_blank" class="btn secondary">Swagger</a>
+    </div>
+  </header>
+
+  <div id="toast" class="toast hidden"></div>
+  <div id="healthBanner" class="banner hidden"></div>
+
+  <nav class="tabs">
+    <button type="button" class="tab active" data-tab="users">Users</button>
+    <button type="button" class="tab" data-tab="events">Events</button>
+    <button type="button" class="tab" data-tab="invitations">Invitations</button>
+  </nav>
+
+  <main>
+    <!-- USERS -->
+    <section id="panel-users" class="panel active">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Create user</h2>
+          <form id="formUser">
+            <label>Email <input type="email" name="email" required placeholder="user@example.com" /></label>
+            <label>Full name <input type="text" name="full_name" required placeholder="Jane Doe" /></label>
+            <button type="submit" class="btn primary">Create user</button>
+          </form>
+        </div>
+        <div class="card">
+          <h2>Stored IDs <span class="hint">(click to copy)</span></h2>
+          <div id="storedUsers" class="id-list empty">Create users to see IDs here.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>All users</h2>
+          <button type="button" id="btnRefreshUsers" class="btn secondary">Refresh</button>
+        </div>
+        <div id="usersList" class="data-list"></div>
+      </div>
+    </section>
+
+    <!-- EVENTS -->
+    <section id="panel-events" class="panel">
+      <div class="card">
+        <h2>Create event</h2>
+        <form id="formEvent" class="form-grid">
+          <label>Title <input type="text" name="title" required value="Team Standup" /></label>
+          <label>Organizer ID
+            <select name="organizer_id" id="eventOrganizer" required><option value="">— select user —</option></select>
+          </label>
+          <label>Description <input type="text" name="description" value="Weekly sync" /></label>
+          <label>Location <input type="text" name="location" placeholder="Room A / meet link" /></label>
+          <label>Start <input type="datetime-local" name="start_time" required /></label>
+          <label>End <input type="datetime-local" name="end_time" required /></label>
+          <label>Timezone <input type="text" name="timezone" value="UTC" /></label>
+          <label class="span-2">Participants
+            <select name="participant_ids" id="eventParticipants" multiple size="3"></select>
+            <span class="hint">Hold Ctrl/Cmd to select multiple</span>
+          </label>
+          <label class="checkbox span-2">
+            <input type="checkbox" name="recurring" id="chkRecurring" />
+            Recurring event
+          </label>
+          <div id="recurrenceFields" class="recurrence span-2 hidden">
+            <label>Frequency
+              <select name="frequency">
+                <option value="daily">Daily</option>
+                <option value="weekly" selected>Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
+            <label>Interval <input type="number" name="interval" min="1" value="1" /></label>
+            <label>Weekdays (weekly)
+              <select name="by_weekday" multiple size="3">
+                <option value="MO" selected>Monday</option>
+                <option value="TU">Tuesday</option>
+                <option value="WE">Wednesday</option>
+                <option value="TH">Thursday</option>
+                <option value="FR">Friday</option>
+                <option value="SA">Saturday</option>
+                <option value="SU">Sunday</option>
+              </select>
+            </label>
+            <label>Month days (monthly) <input type="text" name="by_monthday" placeholder="15 or 1,15" /></label>
+            <label>Count <input type="number" name="count" min="1" max="500" value="10" /></label>
+          </div>
+          <div class="span-2">
+            <button type="submit" class="btn primary">Create event</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Calendar view (occurrences)</h2>
+          <div class="inline-form">
+            <label>From <input type="date" id="rangeStart" /></label>
+            <label>To <input type="date" id="rangeEnd" /></label>
+            <label>User filter
+              <select id="filterUser"><option value="">All</option></select>
+            </label>
+            <button type="button" id="btnLoadEvents" class="btn primary">Load</button>
+          </div>
+        </div>
+        <div id="eventsList" class="data-list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Edit / delete occurrence</h2>
+        <form id="formOccurrence" class="form-grid">
+          <label>Series ID <input type="text" name="series_id" id="occSeriesId" placeholder="from event list" /></label>
+          <label>Occurrence start (ISO) <input type="text" name="occurrence_start" placeholder="2026-06-09T10:00:00Z" /></label>
+          <label>Scope
+            <select name="scope">
+              <option value="single">Single occurrence</option>
+              <option value="future">This and future</option>
+              <option value="all">Entire series</option>
+            </select>
+          </label>
+          <label>Action
+            <select name="action">
+              <option value="edit">Edit (PATCH)</option>
+              <option value="delete">Delete (cancel)</option>
+            </select>
+          </label>
+          <label>New title <input type="text" name="title" placeholder="optional" /></label>
+          <label>New start <input type="datetime-local" name="start_time" /></label>
+          <label>New end <input type="datetime-local" name="end_time" /></label>
+          <div class="span-2">
+            <button type="submit" class="btn primary">Apply</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- INVITATIONS -->
+    <section id="panel-invitations" class="panel">
+      <div class="card">
+        <h2>Send invitation</h2>
+        <form id="formInvitation" class="form-grid">
+          <label>Event series ID <input type="text" name="event_series_id" id="invEventId" required /></label>
+          <label>Invitee
+            <select name="invitee_id" id="invInvitee" required><option value="">— select —</option></select>
+          </label>
+          <label>Invited by
+            <select name="invited_by" id="invInvitedBy" required><option value="">— select —</option></select>
+          </label>
+          <label>Occurrence start (optional, single occurrence)
+            <input type="text" name="occurrence_start" placeholder="leave empty for whole series" />
+          </label>
+          <div class="span-2">
+            <button type="submit" class="btn primary">Send invitation</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Invitations</h2>
+          <div class="inline-form">
+            <label>Filter invitee
+              <select id="invFilterUser"><option value="">All</option></select>
+            </label>
+            <label>Status
+              <select id="invFilterStatus">
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="accepted">Accepted</option>
+                <option value="rejected">Rejected</option>
+                <option value="tentative">Tentative</option>
+              </select>
+            </label>
+            <button type="button" id="btnLoadInvitations" class="btn primary">Refresh</button>
+          </div>
+        </div>
+        <div id="invitationsList" class="data-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/ui/js/app.js"></script>
+</body>
+</html>
