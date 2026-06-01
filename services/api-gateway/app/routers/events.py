@@ -1,10 +1,10 @@
 from datetime import datetime
 from uuid import UUID
 
-import httpx
 from fastapi import APIRouter, Query, status
 
 from app.config import settings
+from app.http_client import service_request
 from app.schemas import (
     EventCreate,
     EventListResponse,
@@ -17,19 +17,12 @@ from app.schemas import (
 
 router = APIRouter(prefix="/api/v1/events", tags=["Events"])
 
-HEADERS = {"X-Internal-Api-Key": settings.internal_api_key}
-BASE = settings.event_service_url.rstrip("/")
-
-
-async def _request(method: str, path: str, **kwargs) -> httpx.Response:
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        return await client.request(method, f"{BASE}{path}", headers=HEADERS, **kwargs)
-
 
 @router.post("", response_model=EventSeriesResponse, status_code=status.HTTP_201_CREATED, summary="Create event")
 async def create_event(payload: EventCreate) -> EventSeriesResponse:
-    response = await _request("POST", "/events", json=payload.model_dump(mode="json"))
-    response.raise_for_status()
+    response = await service_request(
+        settings.event_service_url, "POST", "/events", json=payload.model_dump(mode="json")
+    )
     return EventSeriesResponse.model_validate(response.json())
 
 
@@ -49,31 +42,30 @@ async def list_events(
     }
     if user_id:
         params["user_id"] = str(user_id)
-    response = await _request("GET", "/events", params=params)
-    response.raise_for_status()
+    response = await service_request(settings.event_service_url, "GET", "/events", params=params)
     return EventListResponse.model_validate(response.json())
 
 
 @router.get("/{series_id}", response_model=EventSeriesResponse, summary="Get event series")
 async def get_event(series_id: UUID) -> EventSeriesResponse:
-    response = await _request("GET", f"/events/{series_id}")
-    response.raise_for_status()
+    response = await service_request(settings.event_service_url, "GET", f"/events/{series_id}")
     return EventSeriesResponse.model_validate(response.json())
 
 
 @router.patch("/{series_id}", response_model=EventSeriesResponse, summary="Update entire event series")
 async def update_event(series_id: UUID, payload: EventUpdate) -> EventSeriesResponse:
-    response = await _request(
-        "PATCH", f"/events/{series_id}", json=payload.model_dump(mode="json", exclude_unset=True)
+    response = await service_request(
+        settings.event_service_url,
+        "PATCH",
+        f"/events/{series_id}",
+        json=payload.model_dump(mode="json", exclude_unset=True),
     )
-    response.raise_for_status()
     return EventSeriesResponse.model_validate(response.json())
 
 
 @router.delete("/{series_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Cancel event series")
 async def delete_event(series_id: UUID) -> None:
-    response = await _request("DELETE", f"/events/{series_id}")
-    response.raise_for_status()
+    await service_request(settings.event_service_url, "DELETE", f"/events/{series_id}")
 
 
 @router.get("/{series_id}/occurrences", response_model=EventListResponse, summary="List occurrences for series")
@@ -82,12 +74,12 @@ async def list_occurrences(
     range_start: datetime = Query(...),
     range_end: datetime = Query(...),
 ) -> EventListResponse:
-    response = await _request(
+    response = await service_request(
+        settings.event_service_url,
         "GET",
         f"/events/{series_id}/occurrences",
         params={"range_start": range_start.isoformat(), "range_end": range_end.isoformat()},
     )
-    response.raise_for_status()
     return EventListResponse.model_validate(response.json())
 
 
@@ -100,12 +92,12 @@ async def get_occurrence(
     series_id: UUID,
     occurrence_start: datetime = Query(...),
 ) -> EventOccurrenceResponse:
-    response = await _request(
+    response = await service_request(
+        settings.event_service_url,
         "GET",
         f"/events/{series_id}/occurrences/detail",
         params={"occurrence_start": occurrence_start.isoformat()},
     )
-    response.raise_for_status()
     return EventOccurrenceResponse.model_validate(response.json())
 
 
@@ -117,8 +109,12 @@ async def get_occurrence(
 async def update_occurrence(
     series_id: UUID, payload: EventOccurrenceUpdate
 ) -> EventOccurrenceResponse | EventSeriesResponse:
-    response = await _request("PATCH", f"/events/{series_id}/occurrences", json=payload.model_dump(mode="json"))
-    response.raise_for_status()
+    response = await service_request(
+        settings.event_service_url,
+        "PATCH",
+        f"/events/{series_id}/occurrences",
+        json=payload.model_dump(mode="json"),
+    )
     data = response.json()
     if "occurrence_id" in data:
         return EventOccurrenceResponse.model_validate(data)
@@ -131,7 +127,9 @@ async def update_occurrence(
     summary="Delete/cancel occurrence (single / future / all)",
 )
 async def delete_occurrence(series_id: UUID, payload: EventOccurrenceDelete) -> None:
-    response = await _request(
-        "DELETE", f"/events/{series_id}/occurrences", json=payload.model_dump(mode="json")
+    await service_request(
+        settings.event_service_url,
+        "DELETE",
+        f"/events/{series_id}/occurrences",
+        json=payload.model_dump(mode="json"),
     )
-    response.raise_for_status()

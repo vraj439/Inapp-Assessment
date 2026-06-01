@@ -128,13 +128,16 @@ curl -s -X PATCH "http://localhost:8080/api/v1/invitations/<INVITATION_ID>/statu
 
 ## Configuration
 
-Set in `.env` (see `.env.example`):
+Copy `.env.example` to `.env` and adjust values. All services read configuration from environment variables (no hardcoded secrets or URLs in application code).
 
-```
-INTERNAL_API_KEY=your-secure-key
-```
+Key variables:
 
-All services must share the same key for internal communication.
+- `INTERNAL_API_KEY` — shared by all services for internal calls
+- `USER_SERVICE_URL`, `EVENT_SERVICE_URL`, `INVITATION_SERVICE_URL` — upstream URLs (API gateway)
+- `USERS_DATABASE_URL`, `EVENTS_DATABASE_URL`, `INVITATIONS_DATABASE_URL` — per-service Postgres DSNs
+- `CORS_ORIGINS`, `SERVE_FRONTEND`, `FRONTEND_DIR` — API gateway UI and CORS
+
+See `.env.example` for the full list.
 
 ## System Design
 

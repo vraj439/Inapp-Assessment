@@ -1,9 +1,9 @@
 from uuid import UUID
 
-import httpx
 from fastapi import APIRouter, Query, status
 
 from app.config import settings
+from app.http_client import service_request
 from app.schemas import (
     InvitationCreate,
     InvitationListResponse,
@@ -14,19 +14,12 @@ from app.schemas import (
 
 router = APIRouter(prefix="/api/v1/invitations", tags=["Invitations"])
 
-HEADERS = {"X-Internal-Api-Key": settings.internal_api_key}
-BASE = settings.invitation_service_url.rstrip("/")
-
-
-async def _request(method: str, path: str, **kwargs) -> httpx.Response:
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        return await client.request(method, f"{BASE}{path}", headers=HEADERS, **kwargs)
-
 
 @router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED, summary="Send invitation")
 async def create_invitation(payload: InvitationCreate) -> InvitationResponse:
-    response = await _request("POST", "/invitations", json=payload.model_dump(mode="json"))
-    response.raise_for_status()
+    response = await service_request(
+        settings.invitation_service_url, "POST", "/invitations", json=payload.model_dump(mode="json")
+    )
     return InvitationResponse.model_validate(response.json())
 
 
@@ -45,15 +38,13 @@ async def list_invitations(
         params["event_series_id"] = str(event_series_id)
     if status_filter:
         params["status"] = status_filter.value
-    response = await _request("GET", "/invitations", params=params)
-    response.raise_for_status()
+    response = await service_request(settings.invitation_service_url, "GET", "/invitations", params=params)
     return InvitationListResponse.model_validate(response.json())
 
 
 @router.get("/{invitation_id}", response_model=InvitationResponse, summary="Get invitation")
 async def get_invitation(invitation_id: UUID) -> InvitationResponse:
-    response = await _request("GET", f"/invitations/{invitation_id}")
-    response.raise_for_status()
+    response = await service_request(settings.invitation_service_url, "GET", f"/invitations/{invitation_id}")
     return InvitationResponse.model_validate(response.json())
 
 
@@ -65,16 +56,15 @@ async def get_invitation(invitation_id: UUID) -> InvitationResponse:
 async def respond_to_invitation(
     invitation_id: UUID, payload: InvitationStatusUpdate
 ) -> InvitationResponse:
-    response = await _request(
+    response = await service_request(
+        settings.invitation_service_url,
         "PATCH",
         f"/invitations/{invitation_id}/status",
         json=payload.model_dump(mode="json"),
     )
-    response.raise_for_status()
     return InvitationResponse.model_validate(response.json())
 
 
 @router.delete("/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Revoke invitation")
 async def delete_invitation(invitation_id: UUID) -> None:
-    response = await _request("DELETE", f"/invitations/{invitation_id}")
-    response.raise_for_status()
+    await service_request(settings.invitation_service_url, "DELETE", f"/invitations/{invitation_id}")

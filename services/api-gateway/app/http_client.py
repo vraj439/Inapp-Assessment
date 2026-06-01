@@ -3,6 +3,12 @@ from fastapi import HTTPException
 
 from app.config import settings
 
+INTERNAL_HEADER = "X-Internal-Api-Key"
+
+
+def internal_headers() -> dict[str, str]:
+    return {INTERNAL_HEADER: settings.internal_api_key}
+
 
 async def service_request(
     base_url: str,
@@ -10,12 +16,11 @@ async def service_request(
     path: str,
     **kwargs,
 ) -> httpx.Response:
-    headers = {"X-Internal-Api-Key": settings.internal_api_key}
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
         response = await client.request(
             method,
             f"{base_url.rstrip('/')}{path}",
-            headers=headers,
+            headers=internal_headers(),
             **kwargs,
         )
     if response.status_code >= 400:

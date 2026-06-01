@@ -43,10 +43,12 @@ services:
 
   user-service:
     build: ./services/user-service
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://users:users_secret@postgres-users:5432/users_db
-      SERVICE_NAME: user-service
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-in-production}
+      DATABASE_URL: ${USERS_DATABASE_URL}
+      SERVICE_NAME: ${USER_SERVICE_NAME}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     depends_on:
       postgres-users:
         condition: service_healthy
@@ -61,11 +63,13 @@ services:
 
   event-service:
     build: ./services/event-service
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://events:events_secret@postgres-events:5432/events_db
-      USER_SERVICE_URL: http://user-service:8001
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-in-production}
-      SERVICE_NAME: event-service
+      DATABASE_URL: ${EVENTS_DATABASE_URL}
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      SERVICE_NAME: ${EVENT_SERVICE_NAME}
     depends_on:
       postgres-events:
         condition: service_healthy
@@ -82,12 +86,14 @@ services:
 
   invitation-service:
     build: ./services/invitation-service
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://invitations:invitations_secret@postgres-invitations:5432/invitations_db
-      EVENT_SERVICE_URL: http://event-service:8002
-      USER_SERVICE_URL: http://user-service:8001
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-in-production}
-      SERVICE_NAME: invitation-service
+      DATABASE_URL: ${INVITATIONS_DATABASE_URL}
+      EVENT_SERVICE_URL: ${EVENT_SERVICE_URL}
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      SERVICE_NAME: ${INVITATION_SERVICE_NAME}
     depends_on:
       postgres-invitations:
         condition: service_healthy
@@ -108,14 +114,25 @@ services:
     build:
       context: .
       dockerfile: services/api-gateway/Dockerfile
+    env_file:
+      - .env
     ports:
       - "8080:8000"
     environment:
-      USER_SERVICE_URL: http://user-service:8001
-      EVENT_SERVICE_URL: http://event-service:8002
-      INVITATION_SERVICE_URL: http://invitation-service:8003
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-in-production}
-      GATEWAY_TITLE: Event Scheduling API
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
+      EVENT_SERVICE_URL: ${EVENT_SERVICE_URL}
+      INVITATION_SERVICE_URL: ${INVITATION_SERVICE_URL}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      GATEWAY_TITLE: ${GATEWAY_TITLE}
+      GATEWAY_VERSION: ${GATEWAY_VERSION}
+      SERVICE_NAME: ${SERVICE_NAME}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      SERVE_FRONTEND: ${SERVE_FRONTEND}
+      FRONTEND_DIR: ${FRONTEND_DIR}
+      HTTP_TIMEOUT: ${HTTP_TIMEOUT}
+      DOCS_URL: ${DOCS_URL}
+      REDOC_URL: ${REDOC_URL}
+      OPENAPI_URL: ${OPENAPI_URL}
     depends_on:
       user-service:
         condition: service_healthy
