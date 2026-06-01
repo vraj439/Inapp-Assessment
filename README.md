@@ -1,5 +1,6 @@
 # Event Scheduling Platform
 
+
 Production-ready, microservices-based event scheduling backend (calendar-style) with recurring events, occurrence modifications, and invitations.
 
 **Designed for:** Rajendra Badgujar — Tech Lead Python System Design Assessment
