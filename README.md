@@ -22,6 +22,29 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
+## Run With Local Postgres (Host DB)
+
+If you already run Postgres on your machine and want Docker to run only app services:
+
+```bash
+cd /path/to/Inapp-Assessment
+cp .env.example .env
+# keep DB URLs pointed to host.docker.internal in .env
+docker compose -f docker-compose.localdb.yml up --build -d
+```
+
+Required local databases/users (defaults expected by `.env`):
+
+- `users` / `users_secret` / `users_db`
+- `events` / `events_secret` / `events_db`
+- `invitations` / `invitations_secret` / `invitations_db`
+
+Stop local-db mode:
+
+```bash
+docker compose -f docker-compose.localdb.yml down
+```
+
 Wait for health checks (~30–60s), then open:
 
 | URL | Description |

@@ -23,7 +23,25 @@ async def create_event(payload: EventCreate) -> EventSeriesResponse:
     response = await service_request(
         settings.event_service_url, "POST", "/events", json=payload.model_dump(mode="json")
     )
-    return EventSeriesResponse.model_validate(response.json())
+    event = EventSeriesResponse.model_validate(response.json())
+
+    # Create series-level invitations for all participants on event creation.
+    # Invitation endpoint already prevents duplicates per event+invitee.
+    for participant_id in event.participant_ids:
+        if participant_id == event.organizer_id:
+            continue
+        await service_request(
+            settings.invitation_service_url,
+            "POST",
+            "/invitations",
+            json={
+                "event_series_id": str(event.id),
+                "invitee_id": str(participant_id),
+                "invited_by": str(event.organizer_id),
+            },
+        )
+
+    return event
 
 
 @router.get("", response_model=EventListResponse, summary="List event occurrences in date range")

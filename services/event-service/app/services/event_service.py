@@ -37,6 +37,24 @@ class EventService:
         all_users = [payload.organizer_id, *payload.participant_ids]
         await self.user_client.validate_users_exist(all_users)
 
+        # Guard against accidental duplicate submissions creating the same series twice.
+        normalized_participants = sorted(str(uid) for uid in payload.participant_ids)
+        recurrence_payload = payload.recurrence_rule.model_dump(mode="json") if payload.recurrence_rule else None
+        existing = await self.db.execute(
+            select(EventSeries).where(
+                EventSeries.is_cancelled.is_(False),
+                EventSeries.organizer_id == payload.organizer_id,
+                EventSeries.title == payload.title,
+                EventSeries.start_time == payload.start_time,
+                EventSeries.end_time == payload.end_time,
+                EventSeries.timezone == payload.timezone,
+                EventSeries.location == payload.location,
+            )
+        )
+        for series in existing.scalars().all():
+            if sorted(series.participant_ids) == normalized_participants and series.recurrence_rule == recurrence_payload:
+                return self._to_series_response(series)
+
         series = EventSeries(
             title=payload.title,
             description=payload.description,

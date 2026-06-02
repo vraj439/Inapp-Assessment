@@ -94,7 +94,11 @@ function populateUserSelects() {
     const isMulti = sel.multiple;
     const isFilter = id.startsWith("invFilter") || id === "filterUser";
     const current = sel.value;
-    sel.innerHTML = isFilter ? '<option value="">All</option>' : '<option value="">— select —</option>';
+    if (isMulti) {
+      sel.innerHTML = "";
+    } else {
+      sel.innerHTML = isFilter ? '<option value="">All</option>' : '<option value="">— select —</option>';
+    }
     users.forEach((u) => {
       const opt = document.createElement("option");
       opt.value = u.id;
@@ -188,20 +192,34 @@ document.getElementById("formUser").addEventListener("submit", async (e) => {
 async function loadUsers() {
   const el = document.getElementById("usersList");
   el.innerHTML = "<p class='hint'>Loading…</p>";
+
   try {
     const data = await api("GET", "/api/v1/users?limit=50");
-    data.items.forEach((u) => saveStoredUser(u));
-    if (!data.items.length) {
+
+    const users = data.items || [];
+
+    // Always sync localStorage with API response
+    localStorage.setItem(
+      STORAGE_USERS,
+      JSON.stringify(users)
+    );
+
+    renderStoredUsers();
+    populateUserSelects();
+
+    if (users.length === 0) {
       el.innerHTML = "<p class='hint'>No users yet.</p>";
       return;
     }
-    el.innerHTML = data.items
+
+    el.innerHTML = users
       .map(
         (u) => `
-      <div class="item">
-        <strong>${u.full_name}</strong> — ${u.email}
-        <div class="meta">ID: ${u.id}</div>
-      </div>`
+        <div class="item">
+          <strong>${u.full_name}</strong> — ${u.email}
+          <div class="meta">ID: ${u.id}</div>
+        </div>
+      `
       )
       .join("");
   } catch (err) {
@@ -212,8 +230,16 @@ async function loadUsers() {
 document.getElementById("btnRefreshUsers").addEventListener("click", loadUsers);
 
 // Events
+let isCreatingEvent = false;
+
 document.getElementById("formEvent").addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (isCreatingEvent) return;
+
+  isCreatingEvent = true;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
   const fd = new FormData(e.target);
   const participantSelect = document.getElementById("eventParticipants");
   const participant_ids = [...participantSelect.selectedOptions].map((o) => o.value);
@@ -254,6 +280,9 @@ document.getElementById("formEvent").addEventListener("submit", async (e) => {
     loadEvents();
   } catch (err) {
     toast(err.message, "error");
+  } finally {
+    isCreatingEvent = false;
+    if (submitBtn) submitBtn.disabled = false;
   }
 });
 
@@ -366,17 +395,31 @@ document.getElementById("formOccurrence").addEventListener("submit", async (e) =
 document.getElementById("formInvitation").addEventListener("submit", async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  const body = {
-    event_series_id: fd.get("event_series_id"),
-    invitee_id: fd.get("invitee_id"),
-    invited_by: fd.get("invited_by"),
-  };
   const occ = fd.get("occurrence_start");
-  if (occ) body.occurrence_start = occ;
+  const selectedInvitees = [...document.getElementById("invInvitee").selectedOptions]
+    .map((opt) => opt.value)
+    .filter(Boolean);
+  if (!selectedInvitees.length) {
+    toast("Select at least one invitee", "error");
+    return;
+  }
 
   try {
-    await api("POST", "/api/v1/invitations", body);
-    toast("Invitation sent");
+    const baseBody = {
+      event_series_id: fd.get("event_series_id"),
+      invited_by: fd.get("invited_by"),
+    };
+    if (occ) baseBody.occurrence_start = occ;
+
+    await Promise.all(
+      selectedInvitees.map((invitee_id) =>
+        api("POST", "/api/v1/invitations", {
+          ...baseBody,
+          invitee_id,
+        })
+      )
+    );
+    toast(`Invitation sent to ${selectedInvitees.length} user(s)`);
     loadInvitations();
   } catch (err) {
     toast(err.message, "error");
